@@ -1,0 +1,46 @@
+/**
+ * Electron Builder Configuration for Windows Installer
+ */
+{
+  "appId": "com.antigravity.ctflab",
+  "productName": "CTF Vulnerable Machine Lab",
+  "copyright": "Copyright © 2026 Antigravity Security Research",
+  "directories": {
+    "output": "C:/Users/hp/CTF-Build-Output",
+    "buildResources": "build"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "vm-assets/**/*",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "vm-assets",
+      "to": "vm-assets",
+      "filter": ["**/*"]
+    }
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "build/icon.ico",
+    "requestedExecutionLevel": "asInvoker"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowElevation": true,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "CTF Vulnerable Machine Lab",
+    "uninstallDisplayName": "CTF Vulnerable Machine Lab",
+    "runAfterFinish": true
+  }
+}
