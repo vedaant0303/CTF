@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Shield, RotateCcw, Cpu, Award, Zap, BarChart2, Radio, LogOut, Database } from 'lucide-react';
+import React, { useState } from 'react';
+import { Shield, RotateCcw, Cpu, Award, Zap, BarChart2, LogOut } from 'lucide-react';
 import { UserProfile, VmStatus, PageView } from '../../types';
 import { Button } from '../Common/Button';
 import { Modal } from '../Common/Modal';
-import { MongoConfigModal } from '../Database/MongoConfigModal';
 import { api } from '../../services/apiBridge';
 
 interface TopNavProps {
@@ -25,20 +24,30 @@ export const TopNav: React.FC<TopNavProps> = ({
 }) => {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [showMongoModal, setShowMongoModal] = useState(false);
-  const [mongoConnected, setMongoConnected] = useState(false);
+  const [resetSuccessToast, setResetSuccessToast] = useState(() => {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('ctf_vm_reset_toast') === 'true') {
+      sessionStorage.removeItem('ctf_vm_reset_toast');
+      return true;
+    }
+    return false;
+  });
 
-  useEffect(() => {
-    api.getMongoStatus()
-      .then((s) => setMongoConnected(s.connected))
-      .catch(() => {});
-  }, []);
+  React.useEffect(() => {
+    if (resetSuccessToast) {
+      const timer = setTimeout(() => setResetSuccessToast(false), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [resetSuccessToast]);
 
   const handleReset = async () => {
     setResetting(true);
-    await onResetLab();
-    setResetting(false);
-    setShowResetConfirm(false);
+    try {
+      await onResetLab();
+    } catch (err) {
+      console.error('[TopNav] Reset lab failed:', err);
+      setResetting(false);
+      setShowResetConfirm(false);
+    }
   };
 
   const navItems: { id: PageView; label: string; icon: React.ReactNode }[] = [
@@ -135,52 +144,6 @@ export const TopNav: React.FC<TopNavProps> = ({
 
         {/* Right: Live Sandbox Status, XP Counter, Clean Snapshot Trigger */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* MongoDB Atlas Cloud Pill */}
-          <div
-            onClick={() => setShowMongoModal(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 11,
-              fontWeight: 700,
-              fontFamily: 'var(--font-mono)',
-              color: mongoConnected ? '#34d399' : '#94a3b8',
-              backgroundColor: mongoConnected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.05)',
-              border: `1px solid ${mongoConnected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 255, 255, 0.1)'}`,
-              padding: '4px 10px',
-              borderRadius: 9999,
-              cursor: 'pointer',
-            }}
-            title={mongoConnected ? 'MongoDB Atlas Cloud Sync Active (Click to manage)' : 'Local SQLite Mode (Click to connect MongoDB)'}
-          >
-            <Database size={12} color={mongoConnected ? '#34d399' : '#64748b'} />
-            <span>{mongoConnected ? 'ATLAS SYNC' : 'LOCAL DB'}</span>
-          </div>
-
-          {/* Target Sandbox Online Badge */}
-          <div
-            onClick={() => onNavigate('lab-manager')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 11,
-              fontWeight: 700,
-              fontFamily: 'var(--font-mono)',
-              color: '#34d399',
-              backgroundColor: 'rgba(16, 185, 129, 0.12)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
-              padding: '4px 10px',
-              borderRadius: 9999,
-              cursor: 'pointer',
-            }}
-            title="Click to view VM manager & diagnostics"
-          >
-            <Radio size={12} className="glow-emerald" />
-            <span>PORT 8888 ONLINE</span>
-          </div>
-
           {/* XP Pill */}
           <div
             onClick={() => onNavigate('progress-dashboard')}
@@ -194,12 +157,22 @@ export const TopNav: React.FC<TopNavProps> = ({
               color: '#38bdf8',
               backgroundColor: 'rgba(6, 182, 212, 0.12)',
               border: '1px solid rgba(6, 182, 212, 0.3)',
-              padding: '4px 10px',
+              padding: '5px 12px',
               borderRadius: 6,
               cursor: 'pointer',
+              transition: 'all 0.15s ease',
             }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(6, 182, 212, 0.2)';
+              e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(6, 182, 212, 0.12)';
+              e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.3)';
+            }}
+            title="Click to view full operator progression & achievements"
           >
-            <Award size={13} />
+            <Award size={14} color="#38bdf8" />
             <span>{profile?.total_xp || 0} XP</span>
           </div>
 
@@ -209,13 +182,13 @@ export const TopNav: React.FC<TopNavProps> = ({
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 5,
-              fontSize: 11.5,
+              gap: 6,
+              fontSize: 12,
               color: '#94a3b8',
               backgroundColor: 'rgba(255, 255, 255, 0.05)',
               border: '1px solid rgba(255, 255, 255, 0.1)',
               borderRadius: 6,
-              padding: '4px 10px',
+              padding: '5px 12px',
               cursor: 'pointer',
               fontWeight: 600,
               transition: 'all 0.15s ease',
@@ -223,14 +196,16 @@ export const TopNav: React.FC<TopNavProps> = ({
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.5)';
               e.currentTarget.style.color = '#f87171';
+              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
               e.currentTarget.style.color = '#94a3b8';
+              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
             }}
             title="Reset sandbox VM back to clean initial snapshot"
           >
-            <RotateCcw size={12} />
+            <RotateCcw size={13} />
             <span>Reset VM</span>
           </button>
 
@@ -267,6 +242,33 @@ export const TopNav: React.FC<TopNavProps> = ({
         </div>
       </header>
 
+      {/* Reset Success Toast Banner */}
+      {resetSuccessToast && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 60,
+            right: 24,
+            backgroundColor: '#064e3b',
+            color: '#a7f3d0',
+            border: '1px solid #10b981',
+            borderRadius: 8,
+            padding: '10px 18px',
+            fontSize: 13,
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.5)',
+            zIndex: 9999,
+            animation: 'fadeIn 0.2s ease',
+          }}
+        >
+          <RotateCcw size={15} color="#34d399" />
+          <span>✓ Target VM snapshot cleanly restored & application reloaded!</span>
+        </div>
+      )}
+
       {/* Snapshot Reset Confirmation Modal */}
       <Modal
         isOpen={showResetConfirm}
@@ -279,17 +281,10 @@ export const TopNav: React.FC<TopNavProps> = ({
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
           <Button variant="secondary" onClick={() => setShowResetConfirm(false)}>Cancel</Button>
           <Button variant="primary" loading={resetting} onClick={handleReset}>
-            Confirm Clean Reset
+            {resetting ? 'Restarting VM & Reloading...' : 'Confirm Reset & Reload'}
           </Button>
         </div>
       </Modal>
-
-      {/* MongoDB Cloud Database Configuration Modal */}
-      <MongoConfigModal
-        isOpen={showMongoModal}
-        onClose={() => setShowMongoModal(false)}
-        onStatusChange={(c) => setMongoConnected(c)}
-      />
     </>
   );
 };

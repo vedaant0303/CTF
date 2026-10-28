@@ -59,7 +59,9 @@ export const TrainingHome: React.FC<TrainingHomeProps> = ({
   const [installedPackIds, setInstalledPackIds] = useState<string[]>([]);
 
   const completedCount = challenges.filter((c) => c.status === 'completed').length;
-  const firstName = profile?.display_name?.split(' ')[0] || 'Alex';
+  const earnedXp = challenges.reduce((sum, c) => sum + (c.score_awarded || (c.status === 'completed' ? c.xp_reward : 0)), 0);
+  const operativeXp = Math.max(profile?.total_xp || 0, earnedXp);
+  const firstName = profile?.display_name?.split(' ')[0] || profile?.username || 'Varun';
 
   // Filter challenges by track
   const filteredByTrack = challenges.filter((c) => {
@@ -78,21 +80,22 @@ export const TrainingHome: React.FC<TrainingHomeProps> = ({
   });
 
   const getChallengeIcon = (title: string, category: string) => {
-    if (category.includes('Crypto')) return <Key size={18} color="#005944" />;
-    if (category.includes('Forensics')) return <Search size={18} color="#005944" />;
-    if (category.includes('Reverse') || category.includes('Binary')) return <Terminal size={18} color="#005944" />;
-    if (title.includes('SQL')) return <Database size={18} color="#005944" />;
-    if (title.includes('SSRF') || title.includes('Metadata')) return <Search size={18} color="#005944" />;
-    if (title.includes('JWT') || title.includes('Token')) return <Key size={18} color="#005944" />;
-    if (title.includes('CSRF') || title.includes('Forgery')) return <ShieldAlert size={18} color="#005944" />;
-    if (title.includes('Race') || title.includes('Double-Spend')) return <Activity size={18} color="#005944" />;
-    if (title.includes('XSS') || title.includes('IDOR') || title.includes('Insp3ct0r')) return <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#005944' }}>&lt;/&gt;</span>;
-    if (title.includes('Authentication') || title.includes('Authority')) return <Key size={18} color="#005944" />;
-    if (title.includes('Information')) return <Search size={18} color="#005944" />;
-    if (title.includes('Upload')) return <UploadCloud size={18} color="#005944" />;
-    if (title.includes('DoS')) return <Activity size={18} color="#005944" />;
-    if (title.includes('Privilege')) return <Terminal size={18} color="#005944" />;
-    return <FileCode size={18} color="#005944" />;
+    if (category.includes('Crypto')) return <Key size={18} color="#059669" />;
+    if (category.includes('Forensics')) return <Search size={18} color="#059669" />;
+    if (category.includes('Reverse') || category.includes('Binary')) return <Terminal size={18} color="#059669" />;
+    if (title.includes('SQL')) return <Database size={18} color="#059669" />;
+    if (title.includes('SSRF') || title.includes('Metadata')) return <Globe size={18} color="#059669" />;
+    if (title.includes('JWT') || title.includes('Token')) return <Key size={18} color="#059669" />;
+    if (title.includes('CSRF') || title.includes('Forgery')) return <ShieldAlert size={18} color="#059669" />;
+    if (title.includes('Race') || title.includes('Double-Spend')) return <Activity size={18} color="#059669" />;
+    if (title.includes('XSS') || title.includes('IDOR') || title.includes('Insp3ct0r')) return <Code size={18} color="#059669" />;
+    if (title.includes('Authentication') || title.includes('Authority')) return <Key size={18} color="#059669" />;
+    if (title.includes('Cookie')) return <FileCode size={18} color="#059669" />;
+    if (title.includes('Information')) return <Search size={18} color="#059669" />;
+    if (title.includes('Upload')) return <UploadCloud size={18} color="#059669" />;
+    if (title.includes('DoS') || title.includes('Stress')) return <Activity size={18} color="#059669" />;
+    if (title.includes('Privilege') || title.includes('Escalation')) return <Terminal size={18} color="#059669" />;
+    return <FileCode size={18} color="#059669" />;
   };
 
   // Curated Open-Source Community Packs
@@ -467,7 +470,7 @@ export const TrainingHome: React.FC<TrainingHomeProps> = ({
             <div>
               <div style={{ fontSize: 10.5, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Operative XP</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
-                {profile?.total_xp || 0}
+                {operativeXp}
               </div>
             </div>
           </div>
@@ -562,20 +565,20 @@ export const TrainingHome: React.FC<TrainingHomeProps> = ({
         </span>
       </div>
 
-      {/* Track 1: Meridian Exploit Chain Stepper & Information Banner */}
+      {/* Track 1: Meridian Exploit Chain Stepper (All 11 Sequential Attacks) */}
       {selectedTrack === 'meridian' && (
         <div style={{ marginBottom: 24 }}>
           {/* Recommended Chain Stepper Grid */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Sequential Multi-Stage Campaign Map
+              Sequential Multi-Stage Campaign Map (11 Attacks)
             </span>
             <span style={{ fontSize: 11.5, color: '#94a3b8' }}>
               Follow the attack chain step-by-step
             </span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
             {[
               { id: 'ch-sqli-01', step: 'STEP 01', title: 'SQL Injection' },
               { id: 'ch-info-02', step: 'STEP 02', title: 'Info Disclosure' },
@@ -583,10 +586,15 @@ export const TrainingHome: React.FC<TrainingHomeProps> = ({
               { id: 'ch-idor-04', step: 'STEP 04', title: 'XSS / IDOR' },
               { id: 'ch-upload-05', step: 'STEP 05', title: 'File Upload' },
               { id: 'ch-privesc-06', step: 'STEP 06', title: 'Priv Escalation' },
+              { id: 'ch-dos-07', step: 'STEP 07', title: 'DoS Simulation' },
+              { id: 'ch-ssrf-08', step: 'STEP 08', title: 'SSRF Cloud' },
+              { id: 'ch-jwt-09', step: 'STEP 09', title: 'Broken JWT' },
+              { id: 'ch-csrf-10', step: 'STEP 10', title: 'CSRF Forgery' },
+              { id: 'ch-race-11', step: 'STEP 11', title: 'Race Condition' },
             ].map((item) => {
               const ch = challenges.find((c) => c.id === item.id);
               const isCompleted = ch?.status === 'completed';
-              const isUnlocked = ch?.unlocked;
+              const isUnlocked = Boolean(ch?.unlocked);
 
               return (
                 <div
@@ -596,7 +604,7 @@ export const TrainingHome: React.FC<TrainingHomeProps> = ({
                     backgroundColor: isCompleted ? 'rgba(16, 185, 129, 0.12)' : isUnlocked ? 'rgba(15, 23, 42, 0.8)' : 'rgba(15, 23, 42, 0.4)',
                     border: `1px solid ${isCompleted ? 'rgba(16, 185, 129, 0.4)' : isUnlocked ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.05)'}`,
                     borderRadius: 8,
-                    padding: '10px 12px',
+                    padding: '9px 10px',
                     cursor: isUnlocked ? 'pointer' : 'default',
                     opacity: isUnlocked ? 1 : 0.5,
                     transition: 'all 0.15s ease',
@@ -608,10 +616,10 @@ export const TrainingHome: React.FC<TrainingHomeProps> = ({
                     if (isUnlocked) e.currentTarget.style.borderColor = isCompleted ? 'rgba(16, 185, 129, 0.4)' : 'rgba(255, 255, 255, 0.12)';
                   }}
                 >
-                  <div style={{ fontSize: 10, fontWeight: 700, color: isCompleted ? '#34d399' : '#94a3b8', marginBottom: 2, fontFamily: 'var(--font-mono)' }}>
+                  <div style={{ fontSize: 9.5, fontWeight: 700, color: isCompleted ? '#34d399' : '#94a3b8', marginBottom: 2, fontFamily: 'var(--font-mono)' }}>
                     {isCompleted ? '✔ COMPLETED' : item.step}
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#f8fafc', lineHeight: 1.2 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: '#f8fafc', lineHeight: 1.2 }}>
                     {item.title}
                   </div>
                 </div>
@@ -667,7 +675,7 @@ export const TrainingHome: React.FC<TrainingHomeProps> = ({
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(255px, 1fr))', gap: 16 }}>
             {displayedChallenges.map((ch) => {
               const isCompleted = ch.status === 'completed';
-              const isUnlocked = ch.unlocked;
+              const isUnlocked = Boolean(ch.unlocked);
 
               // Difficulty badge variant
               const diffVariant = ch.difficulty === 'Easy' ? 'emerald' : ch.difficulty === 'Hard' ? 'rose' : 'amber';

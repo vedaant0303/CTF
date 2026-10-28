@@ -50,7 +50,8 @@ export interface Challenge {
   prerequisites: string;
   safety_notes: string;
   target_url: string;
-  unlocked: boolean;
+  flag_plain?: string;
+  unlocked: boolean | number;
   status: 'not_started' | 'in_progress' | 'completed';
   hints_revealed: number;
   attempts: number;
@@ -80,6 +81,7 @@ export interface UserProfile {
 }
 
 export interface Badge {
+  id?: string;
   code: string;
   title: string;
   description: string;

@@ -1,9 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, RotateCcw, ShieldCheck, CheckCircle2, Circle, AlertCircle, Lightbulb } from 'lucide-react';
+import {
+  ArrowLeft,
+  RotateCcw,
+  ShieldCheck,
+  CheckCircle2,
+  Circle,
+  AlertCircle,
+  Lightbulb,
+  Copy,
+  Check,
+  BookOpen,
+  Terminal,
+  Info,
+  ChevronRight,
+  ExternalLink,
+  Target,
+  Sparkles
+} from 'lucide-react';
 import { Challenge, FlagSubmitResult } from '../types';
 import { api } from '../services/apiBridge';
 import { EmbeddedVulnBrowser } from '../components/Sandbox/EmbeddedVulnBrowser';
 import { Button } from '../components/Common/Button';
+import { getAttackTutorial, AttackTutorialData } from '../utils/attackTutorials';
 
 interface ActiveSandboxProps {
   challenge: Challenge;
@@ -23,11 +41,47 @@ export const ActiveSandbox: React.FC<ActiveSandboxProps> = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [reloadKey, setReloadKey] = useState<number>(0);
+  const [resetToast, setResetToast] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'tutorial' | 'info'>('tutorial');
+  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [focusedStepNumber, setFocusedStepNumber] = useState<number>(1);
+  const [copiedPayloadIndex, setCopiedPayloadIndex] = useState<number | null>(null);
 
   useEffect(() => {
     // Ensure the isolated local lab environment is actively running
     api.startLab();
-  }, []);
+    setFocusedStepNumber(1);
+    setCompletedSteps([]);
+  }, [challenge.id]);
+
+  const tutorial: AttackTutorialData = getAttackTutorial(
+    challenge.id,
+    challenge.title,
+    challenge.category,
+    challenge.description,
+    challenge.target_url,
+    challenge.flag_plain
+  );
+
+  const toggleStep = (stepNumber: number) => {
+    setCompletedSteps(prev => {
+      const isAlreadyDone = prev.includes(stepNumber);
+      const nextDone = isAlreadyDone ? prev.filter(s => s !== stepNumber) : [...prev, stepNumber];
+      if (!isAlreadyDone && stepNumber === focusedStepNumber && focusedStepNumber < tutorial.tutorialSteps.length) {
+        setFocusedStepNumber(prevNum => prevNum + 1);
+      }
+      return nextDone;
+    });
+  };
+
+  const handleCopyPayload = (payload: string, index: number) => {
+    navigator.clipboard.writeText(payload);
+    setCopiedPayloadIndex(index);
+    setTimeout(() => {
+      setCopiedPayloadIndex(null);
+    }, 2000);
+  };
 
   // Dynamic progressive hints from database
   const hints = [
@@ -76,12 +130,48 @@ export const ActiveSandbox: React.FC<ActiveSandboxProps> = ({
 
   const handleReset = async () => {
     setResetting(true);
-    await onResetLab();
-    setResetting(false);
+    try {
+      await onResetLab();
+      setReloadKey(prev => prev + 1);
+      setResetToast(true);
+      setTimeout(() => setResetToast(false), 3500);
+    } catch (err) {
+      console.error('[ActiveSandbox] Reset failed:', err);
+    } finally {
+      setResetting(false);
+    }
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#070b12', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#070b12', overflow: 'hidden', position: 'relative' }}>
+      {/* Toast Notification for Reset VM */}
+      {resetToast && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 70,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: '#064e3b',
+            color: '#a7f3d0',
+            border: '1px solid #10b981',
+            borderRadius: 8,
+            padding: '10px 20px',
+            fontSize: 13,
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
+            zIndex: 9999,
+            animation: 'fadeIn 0.2s ease',
+          }}
+        >
+          <RotateCcw size={15} color="#34d399" />
+          <span>✓ Target VM cleanly reset to initial state. Modified sandbox files restored.</span>
+        </div>
+      )}
+
       {/* Top Header */}
       <div
         style={{
@@ -101,6 +191,9 @@ export const ActiveSandbox: React.FC<ActiveSandboxProps> = ({
             </span>
             <span className="badge badge-cyan" style={{ fontSize: 10 }}>
               ● {isPico ? 'picoCTF Arena' : 'Meridian Chain'}
+            </span>
+            <span className={`badge badge-${challenge.difficulty === 'Easy' ? 'emerald' : challenge.difficulty === 'Hard' ? 'rose' : 'amber'}`} style={{ fontSize: 10 }}>
+              {challenge.difficulty}
             </span>
           </div>
           <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc', margin: '2px 0 0', letterSpacing: '-0.02em' }}>
@@ -123,11 +216,11 @@ export const ActiveSandbox: React.FC<ActiveSandboxProps> = ({
               color: '#34d399',
               backgroundColor: 'rgba(16, 185, 129, 0.12)',
               border: '1px solid rgba(16, 185, 129, 0.3)',
-              padding: '4px 10px',
+              padding: '5px 12px',
               borderRadius: 6,
             }}
           >
-            <ShieldCheck size={13} />
+            <ShieldCheck size={14} />
             <span>LOCAL SECURED SANDBOX // LOOPBACK ONLY</span>
           </div>
           <span style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'var(--font-mono)' }}>VM: MERIDIAN-01</span>
@@ -136,73 +229,308 @@ export const ActiveSandbox: React.FC<ActiveSandboxProps> = ({
 
       {/* 3-Column Split */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: '14px', gap: '14px', backgroundColor: '#070b12' }}>
-        {/* Left Column: Mission Dossier (~270px) */}
+        
+        {/* Left Column: Attack Information & Step-by-Step Tutorial (~330px) */}
         <div
           className="ui-card"
           style={{
-            width: 270,
+            width: 330,
             overflowY: 'auto',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
             flexShrink: 0,
-            padding: '18px',
+            padding: '16px',
+            backgroundColor: 'rgba(13, 21, 34, 0.95)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
           }}
         >
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#34d399', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 6, fontFamily: 'var(--font-mono)' }}>
-              TACTICAL DOSSIER
+            {/* Tab Switcher: Tutorial vs Short Info */}
+            <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: 10, marginBottom: 14 }}>
+              <button
+                onClick={() => setActiveTab('tutorial')}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  padding: '7px 10px',
+                  borderRadius: 6,
+                  border: 'none',
+                  backgroundColor: activeTab === 'tutorial' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                  color: activeTab === 'tutorial' ? '#34d399' : '#94a3b8',
+                  fontWeight: activeTab === 'tutorial' ? 700 : 500,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <BookOpen size={13} />
+                <span>Step-by-Step Guide</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('info')}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  padding: '7px 10px',
+                  borderRadius: 6,
+                  border: 'none',
+                  backgroundColor: activeTab === 'info' ? 'rgba(6, 182, 212, 0.15)' : 'transparent',
+                  color: activeTab === 'info' ? '#38bdf8' : '#94a3b8',
+                  fontWeight: activeTab === 'info' ? 700 : 500,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <Info size={13} />
+                <span>Attack Intel</span>
+              </button>
             </div>
-            <h3 style={{ fontSize: 15, fontWeight: 800, color: '#f8fafc', margin: '0 0 8px' }}>
-              Mission Objectives
-            </h3>
-            <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 16px', lineHeight: 1.45 }}>
-              {challenge.description}
-            </p>
 
-            {/* Mission Steps */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
-              <div style={{ padding: '8px 10px', backgroundColor: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: 6 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 700, color: '#f8fafc', marginBottom: 2 }}>01 · Inspect Target Vector</div>
-                <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.35 }}>
-                  Examine parameters, headers, and form inputs in the center browser.
+            {/* TAB 1: STEP-BY-STEP TUTORIAL */}
+            {activeTab === 'tutorial' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#34d399', letterSpacing: '0.04em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+                    ATTACK TUTORIAL
+                  </div>
+                  <span style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'var(--font-mono)' }}>
+                    {completedSteps.length} / {tutorial.tutorialSteps.length} STEPS
+                  </span>
+                </div>
+
+                <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 14px', lineHeight: 1.45 }}>
+                  Follow this guided tutorial step-by-step to execute the attack in the center sandbox.
+                </p>
+
+                {/* Numbered Tutorial Steps */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {tutorial.tutorialSteps.map((step, idx) => {
+                    const isDone = completedSteps.includes(step.stepNumber);
+                    const isFocused = step.stepNumber === focusedStepNumber;
+                    const isCopied = copiedPayloadIndex === idx;
+
+                    return (
+                      <div
+                        key={step.stepNumber}
+                        onClick={() => setFocusedStepNumber(step.stepNumber)}
+                        style={{
+                          padding: '12px 14px',
+                          backgroundColor: isFocused
+                            ? 'rgba(16, 185, 129, 0.12)'
+                            : isDone
+                            ? 'rgba(16, 185, 129, 0.05)'
+                            : 'rgba(15, 23, 42, 0.7)',
+                          border: isFocused
+                            ? '2px solid #10b981'
+                            : isDone
+                            ? '1px solid rgba(16, 185, 129, 0.35)'
+                            : '1px solid rgba(255, 255, 255, 0.08)',
+                          borderRadius: 8,
+                          boxShadow: isFocused ? '0 0 16px rgba(16, 185, 129, 0.25)' : 'none',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          position: 'relative',
+                        }}
+                      >
+                        {/* Step Header */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleStep(step.stepNumber);
+                              }}
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, color: isDone ? '#34d399' : '#64748b', display: 'flex' }}
+                              title={isDone ? 'Mark as incomplete' : 'Mark as completed'}
+                            >
+                              {isDone ? <CheckCircle2 size={16} color="#34d399" /> : <Circle size={16} />}
+                            </button>
+                            <span style={{ fontSize: 12.5, fontWeight: isFocused ? 800 : 700, color: isFocused ? '#34d399' : isDone ? '#a7f3d0' : '#f8fafc' }}>
+                              0{step.stepNumber} · {step.title}
+                            </span>
+                          </div>
+                          {isFocused ? (
+                            <span style={{ fontSize: 9.5, fontWeight: 800, color: '#34d399', backgroundColor: 'rgba(16, 185, 129, 0.2)', padding: '2px 7px', borderRadius: 4, fontFamily: 'var(--font-mono)' }}>
+                              👉 OBJECTIVE
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', color: '#64748b', fontFamily: 'var(--font-mono)' }}>
+                              {step.actionType}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Step Guidance Pointer Callout */}
+                        {isFocused && (
+                          <div style={{ margin: '6px 0 8px 23px', padding: '6px 10px', backgroundColor: 'rgba(6, 182, 212, 0.1)', border: '1px solid rgba(6, 182, 212, 0.25)', borderRadius: 6, fontSize: 11, color: '#38bdf8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>🎯</span>
+                            <span>Direct Action: Perform this step in the center sandbox!</span>
+                          </div>
+                        )}
+
+                        {/* Step Instructions */}
+                        <div style={{ fontSize: 11.5, color: isFocused ? '#f1f5f9' : '#94a3b8', lineHeight: 1.45, paddingLeft: 23, marginBottom: step.payload ? 8 : 0 }}>
+                          {step.instructions}
+                        </div>
+
+                        {/* Interactive Payload Box with One-Click Copy */}
+                        {step.payload && (
+                          <div style={{ marginLeft: 23, marginTop: 6 }} onClick={(e) => e.stopPropagation()}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                              <span style={{ fontSize: 10, color: '#34d399', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                                {step.payloadLabel || 'PAYLOAD'}:
+                              </span>
+                              <button
+                                onClick={() => handleCopyPayload(step.payload!, idx)}
+                                style={{
+                                  background: isCopied ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                                  border: `1px solid ${isCopied ? '#10b981' : 'rgba(255, 255, 255, 0.12)'}`,
+                                  color: isCopied ? '#34d399' : '#f8fafc',
+                                  fontSize: 10.5,
+                                  fontWeight: 600,
+                                  padding: '2px 8px',
+                                  borderRadius: 4,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  transition: 'all 0.15s ease',
+                                }}
+                              >
+                                {isCopied ? <Check size={11} /> : <Copy size={11} />}
+                                <span>{isCopied ? 'Copied!' : 'Copy'}</span>
+                              </button>
+                            </div>
+                            <div
+                              style={{
+                                backgroundColor: '#070b12',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                borderRadius: 5,
+                                padding: '6px 8px',
+                                fontFamily: 'var(--font-mono)',
+                                fontSize: 11,
+                                color: '#38bdf8',
+                                wordBreak: 'break-all',
+                                userSelect: 'all',
+                              }}
+                            >
+                              {step.payload}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Tactical Hint */}
+                        {step.hint && (
+                          <div style={{ marginLeft: 23, marginTop: 6, fontSize: 10.5, color: '#64748b', fontStyle: 'italic', lineHeight: 1.35 }}>
+                            💡 {step.hint}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
+            )}
 
-              <div style={{ padding: '8px 10px', backgroundColor: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: 6 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 700, color: '#f8fafc', marginBottom: 2 }}>02 · Execute Exploit</div>
-                <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.35 }}>
-                  Apply the {challenge.category} vulnerability technique to bypass controls.
+            {/* TAB 2: SHORT ATTACK INFORMATION & VULNERABILITY INTEL */}
+            {activeTab === 'info' && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#38bdf8', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10, fontFamily: 'var(--font-mono)' }}>
+                  ATTACK OVERVIEW & INTEL
+                </div>
+
+                {/* CWE & OWASP Badges */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, color: '#34d399', backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '5px 8px', borderRadius: 6, fontFamily: 'var(--font-mono)' }}>
+                    🛡️ {tutorial.cwe}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#38bdf8', backgroundColor: 'rgba(6, 182, 212, 0.1)', border: '1px solid rgba(6, 182, 212, 0.25)', padding: '5px 8px', borderRadius: 6, fontFamily: 'var(--font-mono)' }}>
+                    ⚡ {tutorial.owasp}
+                  </div>
+                </div>
+
+                {/* Attack Short Information Blocks */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ backgroundColor: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: 6, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#f8fafc', marginBottom: 4 }}>
+                      What is this Vulnerability?
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#94a3b8', lineHeight: 1.45 }}>
+                      {tutorial.shortInfo.overview}
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: 6, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#f8fafc', marginBottom: 4 }}>
+                      Technical Mechanism
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#94a3b8', lineHeight: 1.45 }}>
+                      {tutorial.shortInfo.mechanism}
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: 6, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#f8fafc', marginBottom: 4 }}>
+                      Exploit Impact & Risk
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#94a3b8', lineHeight: 1.45 }}>
+                      {tutorial.shortInfo.impact}
+                    </div>
+                  </div>
+
+                  {/* Target Endpoint Info */}
+                  <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: 6, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#34d399', marginBottom: 2 }}>
+                      Target Endpoint
+                    </div>
+                    <div style={{ fontSize: 11, color: '#f8fafc', fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>
+                      {tutorial.targetEndpoint}
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              <div style={{ padding: '8px 10px', backgroundColor: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: 6 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 700, color: '#f8fafc', marginBottom: 2 }}>03 · Exfiltrate Flag Token</div>
-                <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.35 }}>
-                  Locate {isPico ? 'picoCTF{...}' : 'flag{...}'} and submit it into the console on the right.
-                </div>
-              </div>
-            </div>
-
-            {/* Callout note box */}
-            <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: 8, padding: '10px 12px', fontSize: 11.5, color: '#34d399', lineHeight: 1.4 }}>
-              💡 <strong>Target:</strong> {challenge.learning_objectives || 'Observe behavior under unvalidated inputs.'}
-            </div>
+            )}
           </div>
 
-          <div style={{ marginTop: 20, paddingTop: 12, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          {/* Bottom Back Button */}
+          <div style={{ marginTop: 20, paddingTop: 12, borderTop: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <button
               onClick={onBack}
-              style={{ background: 'transparent', border: 'none', color: '#34d399', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+              style={{ background: 'transparent', border: 'none', color: '#34d399', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 5 }}
             >
-              ← Back to Mission Briefing
+              <ArrowLeft size={13} />
+              <span>Back to Arena</span>
             </button>
+            <span style={{ fontSize: 11, color: '#64748b', fontFamily: 'var(--font-mono)' }}>
+              +{challenge.xp_reward} XP
+            </span>
           </div>
         </div>
 
         {/* Center Column: Embedded Target Browser */}
         <div style={{ flex: 1, minWidth: 440, height: '100%' }}>
-          <EmbeddedVulnBrowser initialUrl={targetUrl} key={targetUrl} />
+          <EmbeddedVulnBrowser
+            initialUrl={targetUrl}
+            reloadKey={reloadKey}
+            key={`${targetUrl}-${reloadKey}`}
+            activeStep={tutorial.tutorialSteps.find(s => s.stepNumber === focusedStepNumber) || tutorial.tutorialSteps[0]}
+            totalSteps={tutorial.tutorialSteps.length}
+            onAdvanceStep={() => {
+              toggleStep(focusedStepNumber);
+              if (focusedStepNumber < tutorial.tutorialSteps.length) {
+                setFocusedStepNumber(prev => prev + 1);
+              }
+            }}
+            onSelectStep={(sNum) => setFocusedStepNumber(sNum)}
+          />
         </div>
 
         {/* Right Column: Progress, Hints, Submit Flag (~300px) */}
@@ -221,7 +549,7 @@ export const ActiveSandbox: React.FC<ActiveSandboxProps> = ({
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: hintsRevealed > 0 ? '#34d399' : '#94a3b8' }}>
                 {hintsRevealed > 0 ? <CheckCircle2 size={15} /> : <Circle size={15} />}
-                <span>Examine payload & hints</span>
+                <span>Examine payload & tutorial</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8' }}>
                 <Circle size={15} />

@@ -71,6 +71,15 @@ export class SandboxServer {
   }
 
   public reset(): void {
+    this.state.users = [
+      { id: 1, username: 'taylor', email: 'taylor@meridian.local', role: 'admin', note: 'Private Member Note: Target flag captured! flag{data_not_instructions}' },
+      { id: 2, username: 'alex', email: 'alex@meridian.local', role: 'customer', note: 'Standard member note.' },
+    ];
+    this.state.tickets = [
+      { id: 100, owner: 'admin', subject: 'CONFIDENTIAL: Meridian Audit Findings', body: 'Confidential security assessment item: Target Flag is flag{idor_ticket_exposed_991}. Do not distribute.', isPrivate: true },
+      { id: 101, owner: 'taylor', subject: 'Receipt copy for order MM-1042', body: 'Please send receipt for the organic tea delivery.', isPrivate: false },
+      { id: 104, owner: 'alex', subject: 'Welcome to your Meridian Support Ticket', body: 'Your support ticket #104 is active. Inspect URL parameters to see how direct object authorization works!', isPrivate: false },
+    ];
     this.state.uploadedFiles.clear();
     this.state.rateLimitCounter = 0;
     this.state.rateLimitLastReset = Date.now();
@@ -93,6 +102,55 @@ export class SandboxServer {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
     res.setHeader('X-Frame-Options', 'ALLOWALL');
+
+    // Universal guided attack helper script injected into all HTML challenge pages
+    const originalEnd = res.end.bind(res);
+    (res as any).end = function (chunk?: any, encoding?: any, callback?: any) {
+      if (typeof chunk === 'string') {
+        const guidedScript = `
+<script id="guided-attack-listener">
+  window.addEventListener('message', function(event) {
+    if (event.data && event.data.type === 'AUTOGUIDE_FILL') {
+      var p = event.data.payload || '';
+      var targetInput = document.querySelector('input[name="username"], input[name="name"], input[name="user"], input[name="recipient"], input[type="text"], textarea');
+      if (targetInput) {
+        targetInput.value = p;
+        targetInput.style.border = '2px solid #10b981';
+        targetInput.style.backgroundColor = '#ecfdf5';
+        targetInput.style.boxShadow = '0 0 16px rgba(16, 185, 129, 0.7)';
+        targetInput.focus();
+        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+        targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      var passInput = document.querySelector('input[type="password"]');
+      if (passInput && (!passInput.value || passInput.value === '••••••••')) {
+        passInput.value = 'testpass123';
+        passInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      var amountInput = document.querySelector('input[name="amount"]');
+      if (amountInput) {
+        amountInput.value = '500';
+        amountInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      if (typeof applyTestInput === 'function') {
+        applyTestInput();
+      }
+      var banner = document.createElement('div');
+      banner.style.cssText = 'position:fixed;top:12px;right:16px;background:#065f46;color:#a7f3d0;border:1px solid #10b981;padding:8px 14px;border-radius:6px;font-size:12px;font-weight:700;z-index:999999;box-shadow:0 4px 14px rgba(0,0,0,0.25);animation:fadeIn 0.2s ease;';
+      banner.innerHTML = '⚡ Payload Injected into Form! Click Sign In / Submit below.';
+      document.body.appendChild(banner);
+      setTimeout(function() { banner.remove(); }, 3500);
+    }
+  });
+</script>`;
+        if (chunk.includes('</body>')) {
+          chunk = chunk.replace('</body>', `${guidedScript}\n</body>`);
+        } else if (chunk.includes('</html>')) {
+          chunk = chunk.replace('</html>', `${guidedScript}\n</html>`);
+        }
+      }
+      return (originalEnd as any)(chunk, encoding, callback);
+    };
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);

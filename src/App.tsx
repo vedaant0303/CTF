@@ -64,11 +64,16 @@ export const App: React.FC = () => {
       }
 
       // Initial View Routing:
-      // If user has an active profile already, go straight to training-home.
-      // In Desktop EXE (.exe app): Start at Screen 02 (welcome-lab).
-      // On Web Browser: Start at Screen 01 (launch-setup with Download Relay-Lab.exe page).
+      // If returning from a reload, restore saved view & challenge
+      const savedView = typeof window !== 'undefined' ? (sessionStorage.getItem('ctf_current_view') as PageView | null) : null;
+      const savedChallengeId = typeof window !== 'undefined' ? sessionStorage.getItem('ctf_selected_challenge_id') : null;
+      if (savedChallengeId) {
+        const found = chs.find(c => c.id === savedChallengeId);
+        if (found) setSelectedChallenge(found);
+      }
+
       if (p) {
-        setCurrentView('training-home');
+        setCurrentView(savedView || 'training-home');
       } else {
         setCurrentView(isElectron ? 'welcome-lab' : 'launch-setup');
       }
@@ -156,11 +161,20 @@ export const App: React.FC = () => {
   };
 
   const handleResetLab = async () => {
-    await api.resetLab();
-    const status = await api.getVmStatus();
-    setVmStatus(status);
-    const lg = await api.getActivityLogs();
-    setLogs(lg);
+    try {
+      if (typeof window !== 'undefined') {
+        if (currentView) sessionStorage.setItem('ctf_current_view', currentView);
+        if (selectedChallenge) sessionStorage.setItem('ctf_selected_challenge_id', selectedChallenge.id);
+        sessionStorage.setItem('ctf_vm_reset_toast', 'true');
+      }
+      await api.resetLab();
+    } catch (err) {
+      console.error('[App] Failed to reset VM:', err);
+    }
+    // Fully refresh and reload the entire application window
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
   };
 
   const handleResetAllProgress = async () => {
@@ -174,6 +188,12 @@ export const App: React.FC = () => {
   };
 
   const isFullFlowPage = currentView === 'registration' || currentView === 'assessment' || currentView === 'launch-setup' || currentView === 'welcome-lab';
+
+  const earnedXp = challenges.reduce((sum, c) => sum + (c.score_awarded || (c.status === 'completed' ? c.xp_reward : 0)), 0);
+  const dynamicProfile = profile ? {
+    ...profile,
+    total_xp: Math.max(profile.total_xp || 0, earnedXp),
+  } : null;
 
   const handleProfileChanged = async (newProfile: UserProfile) => {
     setProfile(newProfile);
@@ -196,7 +216,7 @@ export const App: React.FC = () => {
       {/* Top Navigation (shown on workspace views) */}
       {!isFullFlowPage && (
         <TopNav
-          profile={profile}
+          profile={dynamicProfile}
           vmStatus={vmStatus}
           currentView={currentView}
           onResetLab={handleResetLab}
@@ -211,7 +231,7 @@ export const App: React.FC = () => {
         {!isFullFlowPage && (
           <Sidebar
             currentView={currentView}
-            profile={profile}
+            profile={dynamicProfile}
             onNavigate={(view) => {
               if (view === 'active-sandbox' && !selectedChallenge && challenges.length > 0) {
                 setSelectedChallenge(challenges[0]);
@@ -238,7 +258,7 @@ export const App: React.FC = () => {
           )}
 
           {currentView === 'welcome-lab' && (
-            <WelcomeLab onStartLab={handleStartLab} hasProfile={!!profile} />
+            <WelcomeLab onStartLab={handleStartLab} hasProfile={!!dynamicProfile} />
           )}
 
           {currentView === 'registration' && (
@@ -252,7 +272,7 @@ export const App: React.FC = () => {
           {currentView === 'training-home' && (
             <TrainingHome
               challenges={challenges}
-              profile={profile}
+              profile={dynamicProfile}
               onSelectChallenge={handleSelectChallenge}
               onNavigateToDashboard={() => setCurrentView('progress-dashboard')}
               onRefreshChallenges={loadData}
@@ -282,7 +302,7 @@ export const App: React.FC = () => {
               challenges={challenges}
               badges={badges}
               logs={logs}
-              profile={profile}
+              profile={dynamicProfile}
               vmStatus={vmStatus}
               onSelectChallenge={handleSelectChallenge}
               onResetProgress={handleResetAllProgress}
